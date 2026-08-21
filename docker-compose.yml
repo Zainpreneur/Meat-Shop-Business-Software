@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      # Path is resolved relative to backend/prisma/schema.prisma, so this
+      # points at /app/data inside the container (the mounted volume below).
+      DATABASE_URL: "file:../data/dev.db"
+      JWT_SECRET: "change-this-to-a-long-random-secret-in-production"
+      JWT_EXPIRES_IN: "8h"
+      PORT: "4000"
+      CORS_ORIGIN: "http://localhost:8080"
+      NODE_ENV: "production"
+    volumes:
+      - backend_data:/app/data
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

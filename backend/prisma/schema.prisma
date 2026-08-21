@@ -1,0 +1,179 @@
+// Meat Shop Business Management System — Prisma schema
+// Default datasource is SQLite (zero-setup, file-based). To use Postgres/MySQL
+// in production, change the provider + DATABASE_URL and re-run migrations.
+//
+// NOTE: SQLite has no native enum type support in Prisma, so enum-like fields
+// (role, unit, status, paymentMethod, stockMovement type) are modeled as
+// String columns. Valid values are defined once in src/constants/enums.ts and
+// enforced at the application layer via Zod. Switching to Postgres later lets
+// you promote these back to real `enum` blocks if desired.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         String   @default("CASHIER") // Role: ADMIN | MANAGER | CASHIER
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sales     Sale[]
+  purchases Purchase[]
+  expenses  Expense[]
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  products  Product[]
+}
+
+model Product {
+  id            String    @id @default(cuid())
+  name          String
+  sku           String    @unique
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  unit          String    @default("KG") // Unit: KG | GRAM | PIECE | DOZEN
+  costPrice     Float     @default(0)
+  sellingPrice  Float     @default(0)
+  stockQty      Float     @default(0)
+  reorderLevel  Float     @default(5)
+  imageUrl      String?
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  purchaseItems  PurchaseItem[]
+  saleItems      SaleItem[]
+  stockMovements StockMovement[]
+
+  @@index([categoryId])
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  purchases Purchase[]
+}
+
+model Purchase {
+  id          String    @id @default(cuid())
+  reference   String    @unique
+  supplierId  String
+  supplier    Supplier  @relation(fields: [supplierId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  status      String    @default("PENDING") // PurchaseStatus: PENDING | RECEIVED | CANCELLED
+  orderDate   DateTime  @default(now())
+  receivedAt  DateTime?
+  totalAmount Float     @default(0)
+  notes       String?
+
+  items PurchaseItem[]
+
+  @@index([supplierId])
+}
+
+model PurchaseItem {
+  id         String   @id @default(cuid())
+  purchaseId String
+  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id])
+  quantity   Float
+  unitCost   Float
+  subtotal   Float
+
+  @@index([purchaseId])
+  @@index([productId])
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  name          String
+  phone         String?
+  email         String?
+  address       String?
+  creditBalance Float    @default(0)
+  createdAt     DateTime @default(now())
+
+  sales Sale[]
+}
+
+model Sale {
+  id            String    @id @default(cuid())
+  reference     String    @unique
+  customerId    String?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  saleDate      DateTime  @default(now())
+  subtotal      Float     @default(0)
+  discount      Float     @default(0)
+  tax           Float     @default(0)
+  total         Float     @default(0)
+  paymentMethod String    @default("CASH") // PaymentMethod: CASH | CARD | MOBILE_MONEY | CREDIT | BANK_TRANSFER
+  status        String    @default("COMPLETED") // SaleStatus: COMPLETED | REFUNDED | CANCELLED
+  notes         String?
+
+  items SaleItem[]
+
+  @@index([customerId])
+  @@index([saleDate])
+}
+
+model SaleItem {
+  id        String  @id @default(cuid())
+  saleId    String
+  sale      Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  quantity  Float
+  unitPrice Float
+  subtotal  Float
+
+  @@index([saleId])
+  @@index([productId])
+}
+
+model StockMovement {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  type      String // StockMovementType: PURCHASE_IN | SALE_OUT | ADJUSTMENT | WASTAGE | RETURN_IN
+  quantity  Float
+  reason    String?
+  refId     String?
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  category    String
+  description String
+  amount      Float
+  expenseDate DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+}
